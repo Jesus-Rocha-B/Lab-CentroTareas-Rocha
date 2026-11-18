@@ -1,26 +1,38 @@
 package com.rocha.centrotareas.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.rocha.centrotareas.data.TareasRepository
 import com.rocha.centrotareas.model.CargaUi
 import com.rocha.centrotareas.model.PrimosUi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
     // ----- Tarea con progreso (pasos 1 a 4)
     private val _mensaje = MutableStateFlow("Listo")
     val mensaje: StateFlow<String> = _mensaje.asStateFlow()
 
-    // Paso 1: Tarea larga que bloquea el hilo principal (MAL)
-    fun tareaLargaMala() {
-        _mensaje.value = "Trabajando..."
-        Thread.sleep(4000)
-        _mensaje.value = "Terminó"
+    // Paso 2: Tarea larga en segundo plano con withContext (reemplaza tareaLargaMala)
+    fun tareaLarga() {
+        viewModelScope.launch {
+            _mensaje.value = "Trabajando..."
+            Log.d("HILO", "Antes: ${Thread.currentThread().name}")
+            withContext(Dispatchers.Default) {
+                Log.d("HILO", "Dentro: ${Thread.currentThread().name}")
+                delay(4000)
+            }
+            Log.d("HILO", "Despues: ${Thread.currentThread().name}")
+            _mensaje.value = "Terminó"
+        }
     }
 
-    // TODO Paso 2: fun tareaLarga()
     // TODO Paso 3: progreso
     // TODO Paso 4: trabajo (Job), corriendo y cancelar()
 

@@ -98,9 +98,9 @@ fun PantallaTareas(vm: TareasViewModel) {
                         )
                     }
 
-                    // Botón 2: Tarea larga (MAL) que bloquea el hilo principal
+                    // Botón 2: Tarea larga con corrutina en segundo plano
                     Button(
-                        onClick = { vm.tareaLargaMala() },
+                        onClick = { vm.tareaLarga() },
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF1976D2),
@@ -108,7 +108,7 @@ fun PantallaTareas(vm: TareasViewModel) {
                         )
                     ) {
                         Text(
-                            text = "Tarea larga (MAL)",
+                            text = "Tarea larga",
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -123,7 +123,7 @@ fun PantallaTareas(vm: TareasViewModel) {
                 }
             }
 
-            // Recuadro con borde rojo punteado (Explicación del congelamiento)
+            // Recuadro con borde celeste punteado (Paso 2: Con corrutina)
             val strokeDashed = Stroke(
                 width = 3f,
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(15f, 15f), 0f)
@@ -133,20 +133,19 @@ fun PantallaTareas(vm: TareasViewModel) {
                     .fillMaxWidth()
                     .drawBehind {
                         drawRoundRect(
-                            color = Color(0xFFEF4444),
+                            color = Color(0xFF0284C7),
                             style = strokeDashed,
                             cornerRadius = CornerRadius(16.dp.toPx())
                         )
                     }
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Lo que observas: durante 4 segundos\nnada responde y el texto\n«Trabajando...» no aparece",
-                    color = Color(0xFFDC2626),
+                    text = "Los toques siguen sumando mientras trabaja",
+                    color = Color(0xFF0369A1),
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp,
-                    lineHeight = 18.sp,
                     textAlign = TextAlign.Center
                 )
             }
