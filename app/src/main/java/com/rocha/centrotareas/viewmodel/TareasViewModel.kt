@@ -83,7 +83,7 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
         trabajoPrimos?.cancel()
     }
 
-    // ----- Dos cargas (pasos 6 y 7)
+    // ----- Dos cargas (pasos 6 y 7 + Mejora 2: Reintento automático)
     private val _carga = MutableStateFlow<CargaUi>(CargaUi.Inicial)
     val carga: StateFlow<CargaUi> = _carga.asStateFlow()
 
@@ -94,14 +94,38 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
         _simularError.value = valor
     }
 
+    // Mejora 2: Reintento automático de hasta 3 veces con espera creciente
+    private suspend fun <T> ejecutarConReintento(
+        maxIntentos: Int = 3,
+        bloque: suspend () -> T
+    ): T {
+        var esperaMs = 1000L
+        for (intento in 1..maxIntentos) {
+            try {
+                return bloque()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (intento == maxIntentos) throw e
+                _carga.value = CargaUi.Reintentando(intento, maxIntentos)
+                delay(esperaMs)
+                esperaMs += 1000L
+            }
+        }
+        throw java.io.IOException("Sin conexión")
+    }
+
     fun cargarUnaPorUna() {
-        if (_carga.value is CargaUi.Cargando) return
+        if (_carga.value is CargaUi.Cargando || _carga.value is CargaUi.Reintentando) return
         viewModelScope.launch {
             _carga.value = CargaUi.Cargando
             val inicio = System.currentTimeMillis()
             try {
-                val perfil = repo.cargarPerfil()
-                val pedidos = repo.cargarPedidos(_simularError.value)
+                val (perfil, pedidos) = ejecutarConReintento {
+                    val p = repo.cargarPerfil()
+                    val ped = repo.cargarPedidos(_simularError.value)
+                    Pair(p, ped)
+                }
                 val duracion = System.currentTimeMillis() - inicio
                 _carga.value = CargaUi.Exito("Una por una", perfil, pedidos.size, duracion)
             } catch (e: CancellationException) {
@@ -113,15 +137,17 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
     }
 
     fun cargarALaVez() {
-        if (_carga.value is CargaUi.Cargando) return
+        if (_carga.value is CargaUi.Cargando || _carga.value is CargaUi.Reintentando) return
         viewModelScope.launch {
             _carga.value = CargaUi.Cargando
             val inicio = System.currentTimeMillis()
             try {
-                val (perfil, pedidos) = coroutineScope {
-                    val a = async { repo.cargarPerfil() }
-                    val b = async { repo.cargarPedidos(_simularError.value) }
-                    Pair(a.await(), b.await())
+                val (perfil, pedidos) = ejecutarConReintento {
+                    coroutineScope {
+                        val a = async { repo.cargarPerfil() }
+                        val b = async { repo.cargarPedidos(_simularError.value) }
+                        Pair(a.await(), b.await())
+                    }
                 }
                 val duracion = System.currentTimeMillis() - inicio
                 _carga.value = CargaUi.Exito("A la vez", perfil, pedidos.size, duracion)

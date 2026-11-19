@@ -419,7 +419,7 @@ fun PantallaTareas(vm: TareasViewModel) {
                         )
                     }
 
-                    val estaCargando = carga is CargaUi.Cargando
+                    val estaCargando = carga is CargaUi.Cargando || carga is CargaUi.Reintentando
 
                     // Fila de botones: Una por una (OutlinedButton) y A la vez (Button)
                     Row(
@@ -472,6 +472,24 @@ fun PantallaTareas(vm: TareasViewModel) {
                                 modifier = Modifier.padding(vertical = 8.dp),
                                 color = Color(0xFF1976D2)
                             )
+                        }
+                        is CargaUi.Reintentando -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                    color = Color(0xFF1976D2)
+                                )
+                                Text(
+                                    text = "Reintentando (intento ${estado.intento} de ${estado.maxIntentos})...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFE65100),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                         is CargaUi.Exito -> {
                             Column(
