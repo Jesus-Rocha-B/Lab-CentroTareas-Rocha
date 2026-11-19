@@ -8,134 +8,227 @@
 
 ---
 
-## Observación del Paso 1: Provocar el problema (la pantalla se congela)
+## Descripción del Proyecto
+
+**CentroTareas** es una aplicación móvil desarrollada en **Kotlin** con **Jetpack Compose Material 3** que implementa los principios fundamentales de la concurrencia moderna, programación reactiva y arquitectura limpia en Android.
+
+El objetivo central del laboratorio es comprender en profundidad el ciclo de vida del hilo principal (**Main / UI Thread**), prevenir congelamientos de pantalla y errores **ANR (Application Not Responding)**, y estructurar tareas asíncronas mediante **Kotlin Coroutines**, **StateFlow**, **Job** y despachadores optimizados (`Dispatchers.Default` y `Dispatchers.IO`).
+
+### Aspectos Clave Implementados
+* **Prevención de congelamiento:** Reemplazo de bloqueos síncronos (`Thread.sleep`) por corrutinas no bloqueantes con `withContext`.
+* **Programación reactiva con StateFlow:** Emisión unidireccional de estados inmutables hacia la UI mediante `StateFlow<T>`.
+* **Cancelación cooperativa:** Detención inmediata de tareas intensivas de CPU mediante `Job.cancel()` y llamadas continuas a `ensureActive()` sin demoras artificiales.
+* **Procesamiento paralelo estructurado:** Comparación de tiempos entre ejecuciones secuenciales y concurrentes utilizando `async` y `await()` dentro de `coroutineScope`.
+* **Resiliencia y recuperación de errores:** Aislamiento de fallos de red simulados con `try/catch`, preservación estricta de `CancellationException` y opción de reintento interactivo.
+* **Cero fugas de memoria:** Gestión estricta del ciclo de vida con `viewModelScope` (sin `GlobalScope`, `runBlocking` ni `Thread.sleep` en el código final).
+
+---
+
+## Arquitectura del Sistema (MVVM + Repository)
+
+La aplicación sigue el patrón de arquitectura recomendada por Google: **Model-View-ViewModel (MVVM)** combinado con el patrón **Repository**, manteniendo una estricta separación de responsabilidades y eliminando cualquier dependencia de `Context` en las capas lógicas.
+
+```mermaid
+graph TD
+    subgraph UI ["Capa de Presentación (Jetpack Compose)"]
+        PT[PantallaTareas.kt]
+        MA[MainActivity.kt]
+    end
+
+    subgraph ViewModel ["Capa de Estado y Lógica (ViewModel)"]
+        VM[TareasViewModel.kt]
+        VMF[TareasViewModelFactory.kt]
+        SF1[StateFlow: mensaje / progreso / corriendo]
+        SF2[StateFlow: primos - PrimosUi]
+        SF3[StateFlow: carga - CargaUi]
+    end
+
+    subgraph Data ["Capa de Datos (Repository)"]
+        TR[interface TareasRepository]
+        TRL[TareasRepositoryLocal.kt]
+    end
+
+    subgraph Coroutines ["Concurrencia Estructurada (Dispatchers)"]
+        VMS[viewModelScope]
+        DD[Dispatchers.Default<br/>Cálculo intensivo CPU]
+        DIO[Dispatchers.IO<br/>Operaciones de Red/IO]
+    end
+
+    MA --> PT
+    PT -- "Observa estados (collectAsState)" --> SF1
+    PT -- "Observa estados" --> SF2
+    PT -- "Observa estados" --> SF3
+    PT -- "Dispara eventos (Clicks/Toggles)" --> VM
+
+    VM --> VMS
+    VM -- "Delega operaciones" --> TR
+    TR --> TRL
+
+    TRL --> DD
+    TRL --> DIO
+```
+
+---
+
+## Estructura de Paquetes
+
+```text
+com.rocha.centrotareas/
+│
+├── MainActivity.kt                      # Punto de entrada de la actividad (setContent)
+│
+├── data/
+│   ├── TareasRepository.kt              # Contrato de datos para operaciones pesadas y remotas
+│   └── TareasRepositoryLocal.kt         # Implementación local con simulación de demoras y cálculo de primos
+│
+├── model/
+│   └── Estados.kt                       # Interfaces selladas de estado: PrimosUi y CargaUi
+│
+├── ui/
+│   ├── PantallaTareas.kt                # Interfaz completa en Compose (3 tarjetas interactivas)
+│   └── theme/
+│       ├── Color.kt                     # Paleta de colores Material 3
+│       ├── Theme.kt                     # Tema global CentroTareasTheme
+│       └── Type.kt                      # Definición tipográfica
+│
+└── viewmodel/
+    ├── TareasViewModel.kt               # Lógica de corrutinas, medición de tiempos y StateFlows
+    └── TareasViewModelFactory.kt        # Factoría para inyección manual del repositorio
+```
+
+---
+
+## Tabla de Pruebas de Aceptación (Paso 8)
+
+| # | Prueba de Aceptación | Resultado Esperado | Estado |
+|:---:|:---|:---|:---:|
+| **1** | **Tarea larga:** pulsar el botón *Tócame* mientras trabaja | El contador de toques se incrementa continuamente sin congelar la pantalla. | **Superado** |
+| **2** | **Logcat con filtro `HILO`:** traza de hilos de ejecución | `Antes: main` y `Despues: main`; `Dentro: DefaultDispatcher-worker-X`. | **Superado** |
+| **3** | **Iniciar la tarea con progreso:** avance de barra | La barra avanza fluidamente de 0 a 100 % en $\approx 4\text{ s}$. | **Superado** |
+| **4** | **Cancelar a mitad:** pulsación del botón *Cancelar* | La barra se congela en el porcentaje actual, muestra *"Cancelado"* y se puede reiniciar. | **Superado** |
+| **5** | **Pulsar *Iniciar* dos veces seguidas:** prevención de doble tarea | No se lanzan dos corrutinas concurrentes (el botón queda deshabilitado mientras corre). | **Superado** |
+| **6** | **Primos hasta 1000:** precisión del algoritmo matemático | Devuelve exactamente **168 primos**. | **Superado** |
+| **7** | **Primos con $N$ grande ($N = 500000$):** cálculo pesado | La pantalla nunca se cuelga, el contador *Tócame* responde y *Cancelar* detiene el bucle. | **Superado** |
+| **8** | **Carga *Una por una*:** tiempo secuencial | Tarda $\approx 5000\text{ ms}$ ($2\text{ s} + 3\text{ s}$) y muestra perfil y pedidos correctamente. | **Superado** |
+| **9** | **Carga *A la vez*:** tiempo concurrente | Tarda $\approx 3000\text{ ms}$ ($\max(2\text{ s}, 3\text{ s})$), logrando una reducción de latencia del 40%. | **Superado** |
+| **10** | **Error simulado + Reintentar:** resiliencia de fallo | Muestra recuadro rojo con error; al apagar switch y reintentar, muestra éxito sin crasheos. | **Superado** |
+| **11** | **Rotación de pantalla durante la tarea:** retención de estado | La corrutina continúa su cómputo en el ViewModel y el progreso no se reinicia a cero. | **Superado** |
+| **12** | **Inspección de código (`git grep`):** buenas prácticas | `git grep` confirma 0 ocurrencias de `GlobalScope`, `runBlocking` o `Thread.sleep`. | **Superado** |
+
+---
+
+## Observación del Paso 1: El Problema (Pantalla Congelada)
 
 ### 1. ¿Qué pasa con la pantalla?
-Al pulsar el botón **"Tarea larga (MAL)"**, la interfaz de usuario se congela completamente durante 4 segundos. Durante este intervalo:
-* Si el usuario pulsa repetidamente el botón **"Tócame: n"**, el contador no se incrementa.
-* La pantalla no responde a ningún gesto táctil ni muestra animaciones de pulsación (*ripple effect*).
-* La aplicación aparenta estar completamente bloqueada o colgada.
+Al pulsar el botón **"Tarea larga (MAL)"**, la aplicación deja de responder inmediatamente durante 4 segundos completos:
+* El botón **"Tócame: n"** no responde a las pulsaciones y el contador no incrementa.
+* Las animaciones del sistema (*ripple effect*, toques visuales) quedan completamente suspendidas.
+* La interfaz da la apariencia visual de estar bloqueada (*colgada*).
 
 ### 2. ¿Por qué no se ve "Trabajando..."?
-Aunque en el código se asigna `_mensaje.value = "Trabajando..."` antes de la espera, esta instrucción se ejecuta secuencialmente en el **hilo principal (Main / UI Thread)**. Inmediatamente después, se invoca `Thread.sleep(4000)`, lo que pone a dormir al hilo principal encargado de:
-1. Atender eventos de entrada del usuario (*touch events*).
-2. Procesar las recomposiciones de Jetpack Compose.
-3. Dibujar los fotogramas en pantalla a 60 fps / 120 fps (*Choreographer / vsync*).
-
-Al despertar tras 4 segundos, el código asigna `_mensaje.value = "Terminó"`. Por lo tanto, cuando el hilo principal finalmente queda libre para recomponer y redibujar la vista, el valor intermedio *"Trabajando..."* ya fue sobrescrito, renderizándose directamente *"Terminó"*.
+En el código se ejecutaba:
+```kotlin
+_mensaje.value = "Trabajando..."
+Thread.sleep(4000)
+_mensaje.value = "Terminó"
+```
+El hilo principal (**Main Thread**) despacha tanto el código Kotlin secuencial como el ciclo de recomposición y dibujo de Jetpack Compose a través del `Looper` / `MessageQueue` y el `Choreographer`. Al ejecutar `Thread.sleep(4000)` en el hilo principal, éste se suspende físicamente antes de que pueda despachar el mensaje de renderizado de *"Trabajando..."*. Cuando despierta 4 segundos después, la variable ya fue modificada a *"Terminó"*, por lo que Compose solo dibuja el valor final, perdiendo por completo el estado intermedio visual.
 
 ### 3. ¿Qué crees que mostraría Android si la espera fuera de 10 segundos?
-Si el hilo principal permanece bloqueado por **más de 5 segundos** sin atender eventos de entrada del usuario o despachar mensajes del sistema, el sistema operativo Android detecta una pérdida de respuesta y lanza el diálogo del sistema **ANR (Application Not Responding)**:
-
+Si el hilo principal permanece ocupado sin procesar eventos de entrada o despachar fotogramas por **más de 5 segundos**, el sistema operativo detecta la pérdida de respuesta y despliega el diálogo crítico del sistema **ANR (Application Not Responding)**:
 > *"CentroTareas no responde. ¿Quieres cerrarla o esperar?"*
 
-Este cuadro de diálogo permite al usuario forzar el cierre inmediato de la aplicación (*Force Close*), deteriorando gravemente la experiencia de usuario y provocando reportes de fallos en producción.
+Este diálogo ofrece al usuario la opción de forzar el cierre de la aplicación (*Force Close*), deteriorando drásticamente la experiencia de usuario y penalizando la aplicación en Google Play Vitals.
 
 ---
 
-## Solución del Paso 2: Arreglarlo con una corrutina (withContext)
+## Soluciones Implementadas por Pasos
 
-Se reemplazó el bloqueo de `Thread.sleep` por una corrutina estructurada lanzada con `viewModelScope.launch`. La tarea pesada se delega a un hilo de fondo del pool de trabajadores mediante `withContext(Dispatchers.Default)` utilizando la función de suspensión `delay(4000)`.
+### Paso 2 · Mover la tarea larga a una corrutina (`withContext`)
+Se reemplazó el bloqueo de `Thread.sleep` por una corrutina lanzada con `viewModelScope.launch`, delegando la suspensión a `withContext(Dispatchers.Default)` con la función suspendible `delay(4000)`.
+* **Comportamiento obtenido:** La UI permanece 100% interactiva. El contador *Tócame* incrementa fluidamente.
+* **Verificación de hilos en Logcat (filtro `HILO`):**
+  * `Antes: main` (Hilo principal, actualiza mensaje inicial).
+  * `Dentro: DefaultDispatcher-worker-1` (Hilo trabajador del pool de fondo en suspensión).
+  * `Despues: main` (Retorno automático al hilo principal para publicar el mensaje final).
 
-* **Comportamiento obtenido:** Mientras la tarea corre en segundo plano y muestra *"Trabajando..."*, el hilo principal permanece 100% libre para dibujar fotogramas y atender interacciones. El contador del botón **"Tócame: n"** continúa sumando fluidamente.
-* **Traza verificada en Logcat (filtro `HILO`):**
-  * `Antes: main` (Hilo principal donde se actualiza el estado a "Trabajando...")
-  * `Dentro: DefaultDispatcher-worker-1` (Hilo de fondo en segundo plano donde se realiza la espera sin bloquear la UI)
-  * `Despues: main` (Retorno automático al hilo principal para actualizar el estado final a "Terminó")
+### Paso 3 · Barra de progreso con StateFlow
+Se expuso un flujo inmutable `progreso: StateFlow<Float>` en el ViewModel con valores normalizados de `0f` a `1f`.
+* Un bucle de 100 iteraciones en `withContext(Dispatchers.Default)` actualiza el progreso cada 40 ms (`i / 100f`), completando 4 segundos de forma suave.
+* En Compose se enlaza mediante `LinearProgressIndicator(progress = { progreso })` y un indicador textual del porcentaje (`(progreso * 100).toInt() %`).
 
----
+### Paso 4 · Cancelar la tarea con Job
+Se añadió una referencia `trabajo: Job?` y el estado reactivo `corriendo: StateFlow<Boolean>`.
+* **Prevención de concurrencia:** Si la tarea ya corre, nuevas invocaciones se ignoran de inmediato.
+* **Cancelación cooperativa:** `cancelar()` llama a `trabajo?.cancel()`, deteniendo de inmediato el ciclo de espera en `delay()`, fijando el texto en *"Cancelado"* y congelando la barra.
+* **Garantía en ciclo de vida:** El bloque `finally` asegura que `_corriendo.value = false` se asigne invariablemente ante éxito o cancelación.
 
-## Solución del Paso 3: Mostrar el progreso con StateFlow
+### Paso 5 · Contar números primos en Dispatchers.Default con cancelación
+Se implementó un algoritmo intensivo de procesamiento matemático para contar números primos en el rango `2..hasta`.
+* **Cancelación sin demoras:** En cada vuelta del bucle se invoca `ensureActive()`, lo que verifica el estado del Job y lanza `CancellationException` de inmediato, liberando la CPU sin pausas artificiales.
+* **Optimización algorítmica:** La verificación `esPrimo(n)` evalúa divisores con `while (d.toLong() * d <= n)` hasta $\sqrt{n}$, evitando sobrecargas de funciones trigonométricas/raíz y previniendo desbordamientos aritméticos de 32 bits.
+* **Manejo de excepciones:** Se captura `CancellationException`, se transiciona al estado `PrimosUi.Cancelado` y se relanza con `throw e` para mantener el contrato de corrutinas intacto.
 
-Se incorporó un flujo reactivo inmutable `progreso: StateFlow<Float>` en el ViewModel para emitir valores normalizados entre `0f` y `1f` hacia la interfaz de usuario.
+### Paso 6 · Dos cargas a la vez con async
+Se evaluó empíricamente el beneficio del paralelismo estructurado comparando llamadas secuenciales frente a concurrentes.
+* **Secuencial (`cargarUnaPorUna`):** `cargarPerfil()` (2 s) + `cargarPedidos(false)` (3 s) $\approx$ **5000 ms**.
+* **Paralelo (`cargarALaVez`):** Utiliza `coroutineScope` y dispara dos tareas simultáneas con `async`, esperando ambas con `await()`:
+  $$\text{Tiempo total} = \max(2000, 3000) \approx 3000\text{ ms} \quad \text{(40\% de ahorro de tiempo)}$$
 
-* **Algoritmo de avance:** Se ejecuta un bucle de 100 iteraciones en `withContext(Dispatchers.Default)`. Cada iteración suspende por `delay(40)` y actualiza el progreso con `i / 100f`, completando el 100% de la tarea en aproximadamente 4 segundos sin saturar el hilo principal.
-* **Componentes de UI:** La interfaz observa el estado mediante `collectAsState()` y renderiza el componente oficial `LinearProgressIndicator(progress = { progreso })` junto con el porcentaje numérico calculado mediante `(progreso * 100).toInt() %`.
-
----
-
-## Solución del Paso 4: Cancelar la tarea con Job
-
-Se implementó el control de cancelación cooperativa y prevención de ejecuciones concurrentes mediante una referencia `trabajo: Job?` y el estado reactivo `corriendo: StateFlow<Boolean>`.
-
-* **Prevención de doble inicio:** Si la tarea ya se encuentra en ejecución (`_corriendo.value == true`), nuevas invocaciones a `tareaLarga()` se descartan inmediatamente.
-* **Mecanismo de cancelación:** La función `cancelar()` invoca `trabajo?.cancel()`, deteniendo el bucle cooperativo en `delay()`, fijando el estado del mensaje en `"Cancelado"` y congelando la barra de progreso en el porcentaje alcanzado.
-* **Garantía en ciclo de vida (bloque `finally`):** El bloque `finally` asegura que `_corriendo.value = false` se ejecute invariablemente ante éxito o cancelación, habilitando el botón **"Iniciar"** y deshabilitando **"Cancelar"**.
-
----
-
-## Solución del Paso 5: Contar números primos en Dispatchers.Default con cancelación
-
-Se implementó el cálculo intensivo de números primos delegando la carga pesada al despachador optimizado para CPU `withContext(Dispatchers.Default)` y garantizando cancelación cooperativa sin demoras artificiales.
-
-* **Algoritmo en Repository (`TareasRepositoryLocal.kt`):**
-  * La función `contarPrimos(hasta: Int)` itera en el rango `2..hasta`.
-  * En cada vuelta del bucle se invoca `ensureActive()`, lo que permite cancelar la operación pesada en cualquier instante liberando los núcleos del procesador de forma inmediata.
-  * La función privada `esPrimo(n: Int)` evalúa divisores hasta la raíz cuadrada utilizando la condición `while (d.toLong() * d <= n)`, evitando el costo de `sqrt()` y previniendo desbordamientos aritméticos en enteros de 32 bits.
-* **Control reactivo en ViewModel (`TareasViewModel.kt`):**
-  * Se gestiona el ciclo con `trabajoPrimos: Job?` y se expone `primos: StateFlow<PrimosUi>`.
-  * Se mide con precisión el tiempo de ejecución mediante `System.currentTimeMillis()`.
-  * Ante una interrupción del usuario, se captura `CancellationException`, se asigna el estado `PrimosUi.Cancelado` y se relanza la excepción con `throw e` para no romper la propagación del ciclo de vida de la corrutina.
-  * La función `cancelarPrimos()` detiene la corrutina llamando a `trabajoPrimos?.cancel()`.
-* **Interfaz de usuario (`PantallaTareas.kt`):**
-  * Se integró la tarjeta *"Contar números primos"* con un campo de texto numérico `OutlinedTextField` inicialmente vacío (con label y borde azulados), validando únicamente enteros positivos $\ge 2$.
-  * Botón **"Contar"** reactivo (deshabilitado mientras calcula o si el campo está vacío/inválido) y botón **"Cancelar"** activo solo durante el cómputo.
-  * Recuadro de resultado estilizado en verde suave (`#E8F5E9`, borde `#A5D6A7`) con texto verde oscuro (`#1B5E20`), que presenta la cantidad de números primos encontrados y los milisegundos requeridos, comprobándose total fluidez en el hilo principal (el contador del botón *"Tócame"* continúa sumando en tiempo real).
+### Paso 7 · Estados de error y reintento
+Se incorporó el interruptor `Switch` con el texto *"Simular error"* para validar la tolerancia a fallos.
+* **Aislamiento de fallos:** Se protegen las llamadas en un bloque `try/catch` que reenvía `CancellationException` y atrapa `Exception`, evitando que una `IOException` cierre la aplicación.
+* **Recuperación:** La interfaz muestra un recuadro de advertencia rojo suave (`#FEE2E2`) con el mensaje `"No se pudo cargar: Sin conexión"` y ofrece el botón **"Reintentar"**, el cual vuelve a lanzar la carga paralela una vez corregido el problema.
 
 ---
 
-## Solución del Paso 6: Dos cargas a la vez con async
+## Para Pensar: Respuestas a Preguntas Teóricas
 
-Se comparó empíricamente la carga de datos independiente de forma secuencial frente a la concurrencia estructurada mediante `async` y `await()`.
+### 1. ¿Por qué no se veía "Trabajando..." en el Paso 1?
+Porque las instrucciones `_mensaje.value = "Trabajando..."`, `Thread.sleep(4000)` y `_mensaje.value = "Terminó"` se ejecutaban de manera estrictamente secuencial sobre el **mismo hilo principal (Main / UI Thread)**. 
 
-* **Carga secuencial (`cargarUnaPorUna()`):**
-  * Invoca primero `repo.cargarPerfil()` (espera de 2000 ms) y luego `repo.cargarPedidos(false)` (espera de 3000 ms).
-  * **Tiempo total observado:** $\approx 5000\text{ ms}$ ($2\text{ s} + 3\text{ s} = 5\text{ s}$).
-* **Carga paralela / concurrente (`cargarALaVez()`):**
-  * Utiliza `coroutineScope` para garantizar concurrencia estructurada y lanza ambas operaciones simultáneamente mediante `async`:
-    ```kotlin
-    val (perfil, pedidos) = coroutineScope {
-        val a = async { repo.cargarPerfil() }
-        val b = async { repo.cargarPedidos(false) }
-        Pair(a.await(), b.await())
-    }
-    ```
-  * Ambas operaciones corren en paralelo en hilos secundarios. La corrutina principal suspende hasta que la más lenta termina.
-  * **Tiempo total observado:** $\approx 3000\text{ ms}$ ($\max(2000, 3000) = 3000\text{ ms}$), logrando una reducción del 40% en el tiempo de espera del usuario.
-* **Componentes de UI (`PantallaTareas.kt`):**
-  * Tarjeta **"Dos cargas"** con botones *"Una por una"* (`OutlinedButton`) y *"A la vez"* (`Button`).
-  * Deshabilitación reactiva de ambos botones mientras `CargaUi.Cargando` para impedir solicitudes duplicadas.
-  * `CircularProgressIndicator` centrado durante la petición.
-  * Recuadro de resultado verde suave (`#E8F5E9`) detallando modo, nombre del perfil, cantidad de pedidos y milisegundos reales transcurridos, junto con el indicador comparativo de desempeño.
+En Android, la actualización de un estado reactivo no redibuja los píxeles de manera instantánea; en su lugar, encola una solicitud de recomposición y dibujo en la cola de mensajes (`MessageQueue`) gestionada por el `Looper` y coordinada por el reloj de refresco de pantalla (`Choreographer`, típicamente cada 16.6 ms para 60 Hz). Al colocar `Thread.sleep(4000)`, el hilo principal se congeló antes de poder despachar la recomposición de *"Trabajando..."*. Cuando el hilo despertó tras 4 segundos, el valor fue inmediatamente sobrescrito con *"Terminó"*, procesándose únicamente el fotograma con el mensaje final.
+
+### 2. ¿Qué diferencia hay entre `Thread.sleep` y `delay`?
+| Característica | `Thread.sleep(ms)` | `delay(ms)` |
+|:---|:---|:---|
+| **Naturaleza** | Bloqueante a nivel de sistema operativo (*Blocking*). | Suspendible a nivel de corrutina (*Non-blocking / Suspending*). |
+| **Efecto en el hilo** | Bloquea y monopoliza el hilo físico. Nada más puede ejecutarse en él. | Libera el hilo físico para que atienda otras corrutinas o eventos de UI. |
+| **Uso en el Main Thread** | **Prohibido:** Congela la pantalla y detona errores ANR. | **Seguro:** Suspende la corrutina sin afectar la fluidez de la interfaz. |
+| **Mecanismo de tiempo** | Pausa directa del hilo en el scheduler del sistema operativo. | Temporizador programado por el runtime de corrutinas (`Continuation`). |
+
+### 3. ¿Por qué `Dispatchers.Default` para los primos y `Dispatchers.IO` para la red?
+* **`Dispatchers.Default` (Trabajo pesado en CPU):** Está diseñado para cómputo intensivo (cálculos matemáticos, compresión, parseo de datos). Su número de hilos de trabajo está restringido exactamente al número de núcleos físicos del procesador (o mínimo 2). Si se crearan cientos de hilos para tareas de CPU pura, el procesador colapsaría por la sobrecarga del cambio de contexto (*context switching*). Al mantener un hilo por núcleo, se logra la máxima tasa de procesamiento real.
+* **`Dispatchers.IO` (Operaciones de entrada/salida):** Está optimizado para tareas bloqueantes que esperan respuestas externas (llamadas HTTP, consultas a base de datos Room, lectura de archivos). En estas operaciones, los hilos pasan el 99% del tiempo inactivos esperando que un socket o disco responda, sin consumir ciclos de CPU. Por ello, `Dispatchers.IO` puede escalar elásticamente hasta **64 hilos concurrentes** (o el número de núcleos si es mayor), permitiendo despachar múltiples solicitudes simultáneas de I/O sin saturar el sistema.
+
+### 4. ¿Qué pasaría con la corrutina si el usuario cierra la pantalla? ¿Qué papel cumple `viewModelScope`?
+* **Riesgo sin control de ciclo de vida:** Si una corrutina se lanzara en un ámbito global como `GlobalScope` o sin atarse al ciclo de vida, la corrutina continuaría ejecutándose en segundo plano aunque el usuario haya salido de la pantalla. Esto consume batería, gasta CPU innecesariamente y mantiene en memoria referencias implícitas a la actividad o vistas destruidas, provocando una **fuga de memoria (*memory leak*)**.
+* **El papel de `viewModelScope`:** Es un `CoroutineScope` provisto por Android Jetpack estrictamente vinculado al ciclo de vida del `ViewModel`. Internamente cuenta con un `SupervisorJob()` atado a la función `onCleared()`. Cuando el usuario cierra la pantalla o la actividad finaliza, `viewModelScope` cancela de forma automática todas las corrutinas hijas activas, liberando hilos, cerrando conexiones y destruyendo los recursos de manera limpia y predecible.
+
+### 5. ¿Por qué `async` tarda 3 s y no 5 s? ¿Qué pasa si una de las dos cargas falla?
+* **¿Por qué tarda 3 s?**  
+  En la carga secuencial (`cargarUnaPorUna`), la segunda operación no puede comenzar hasta que la primera finalice por completo:
+  $$t_{\text{secuencial}} = t_{\text{perfil}} + t_{\text{pedidos}} = 2000\text{ ms} + 3000\text{ ms} = 5000\text{ ms}$$
+  Con `async`, ambas llamadas se lanzan al mismo tiempo en hilos independientes del pool de trabajadores. Ambas corren de forma concurrente, por lo que el tiempo de espera para el usuario es únicamente el de la tarea más lenta:
+  $$t_{\text{paralelo}} = \max(t_{\text{perfil}}, t_{\text{pedidos}}) = \max(2000\text{ ms}, 3000\text{ ms}) \approx 3000\text{ ms}$$
+* **¿Qué pasa si una de las dos cargas falla?**  
+  Gracias al principio de **concurrencia estructurada (*structured concurrency*)** que rige a `coroutineScope`:
+  1. Si una corrutina hija falla (por ejemplo, `cargarPedidos` lanza `IOException("Sin conexión")`), la excepción se propaga de inmediato al ámbito padre `coroutineScope`.
+  2. El ámbito padre cancela de forma automática e inmediata a todas las demás corrutinas hermanas que aún sigan ejecutándose (en este caso, cancelaría la carga del perfil si estuviera corriendo), impidiendo tareas huérfanas en segundo plano.
+  3. El bloque `coroutineScope` retransmite la excepción para ser capturada por el bloque `catch (e: Exception)`, permitiendo actualizar el estado a `CargaUi.Error` y mostrando el mensaje de error en la UI de forma controlada y sin fallos fatales.
 
 ---
 
-## Solución del Paso 7: Estados de error y reintento
+## Galería de Evidencias (Capturas Reales de Ejecución)
 
-Se diseñó la arquitectura de manejo resiliente de fallos en llamadas asíncronas de red/I-O sin comprometer la estabilidad del proceso.
+A continuación se presentan las capturas del funcionamiento en el emulador/dispositivo real, demostrando el cumplimiento de los contratos funcionales del laboratorio:
 
-* **Control de simulación (`simularError`):**
-  * Se expone `simularError: StateFlow<Boolean>` y la función `cambiarSimularError(valor: Boolean)` en el ViewModel, transmitiendo el parámetro a `repo.cargarPedidos(simularError)`.
-* **Tratamiento estructurado de excepciones (`try/catch`):**
-  * Se envolvieron las llamadas en un bloque `try/catch` riguroso que prioriza la excepción de control de corrutinas:
-    ```kotlin
-    try {
-        ...
-    } catch (e: CancellationException) {
-        throw e // Preserva la cancelación cooperativa del Job
-    } catch (e: Exception) {
-        _carga.value = CargaUi.Error("No se pudo cargar: ${e.message}")
-    }
-    ```
-  * Si la corrutina secundaria lanza una `IOException("Sin conexión")`, se captura de forma controlada y se transiciona de inmediato al estado reactivo `CargaUi.Error`.
-* **Mecanismo de recuperación y UI (`PantallaTareas.kt`):**
-  * Se incorporó el interruptor `Switch` con etiqueta *"Simular error"* en la tarjeta **"Dos cargas"**.
-  * Al activarse el fallo, la interfaz presenta un recuadro de alerta estilizado en rojo suave (`#FEE2E2` con borde `#FCA5A5` y tipografía `#DC2626`) indicando: `"No se pudo cargar: Sin conexión"`.
-  * Se habilita el botón interactivo **"Reintentar"** (`OutlinedButton`) que reejecuta directamente la carga concurrente (`cargarALaVez()`).
-  * Al desactivar el interruptor y pulsar *"Reintentar"*, la corrutina completa satisfactoriamente y retorna al recuadro verde con la información cargada, sin que la aplicación se cierre en ningún escenario.
+| 1. Tarea con Progreso Activa | 2. Cancelación a Mitad de Camino | 3. Cálculo Pesado de Primos ($N = 500000$) |
+|:---:|:---:|:---:|
+| ![Tarea con Progreso](docs/img/01_tarea_progreso.png) | ![Tarea Cancelada](docs/img/02_tarea_cancelada.png) | ![Cálculo de Primos](docs/img/03_calculo_primos.png) |
+| *La barra avanza al 67% mientras el contador 'Tócame' sigue sumando sin congelar la pantalla.* | *El botón 'Cancelar' detiene la tarea al 50% y fija el estado 'Cancelado' de inmediato.* | *Cálculo de 41,538 primos en 2351 ms en Dispatchers.Default manteniendo fluidez total.* |
 
-
-
-
-
-
+| 4. Carga Secuencial ("Una por una") | 5. Error Simulado y Botón Reintentar |
+|:---:|:---:|
+| ![Carga Secuencial](docs/img/04_dos_cargas_secuencial.png) | ![Error Simulado y Reintento](docs/img/05_error_simulado_reintento.png) |
+| *Modo secuencial tardando ~5007 ms para cargar perfil (Ana Torres) y 3 pedidos.* | *Manejo tolerante a fallos: muestra recuadro rojo y ofrece el botón 'Reintentar'.* |
