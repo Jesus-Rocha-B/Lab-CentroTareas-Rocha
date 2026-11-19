@@ -82,6 +82,33 @@ Se implementó el cálculo intensivo de números primos delegando la carga pesad
   * Botón **"Contar"** reactivo (deshabilitado mientras calcula o si el campo está vacío/inválido) y botón **"Cancelar"** activo solo durante el cómputo.
   * Recuadro de resultado estilizado en verde suave (`#E8F5E9`, borde `#A5D6A7`) con texto verde oscuro (`#1B5E20`), que presenta la cantidad de números primos encontrados y los milisegundos requeridos, comprobándose total fluidez en el hilo principal (el contador del botón *"Tócame"* continúa sumando en tiempo real).
 
+---
+
+## Solución del Paso 6: Dos cargas a la vez con async
+
+Se comparó empíricamente la carga de datos independiente de forma secuencial frente a la concurrencia estructurada mediante `async` y `await()`.
+
+* **Carga secuencial (`cargarUnaPorUna()`):**
+  * Invoca primero `repo.cargarPerfil()` (espera de 2000 ms) y luego `repo.cargarPedidos(false)` (espera de 3000 ms).
+  * **Tiempo total observado:** $\approx 5000\text{ ms}$ ($2\text{ s} + 3\text{ s} = 5\text{ s}$).
+* **Carga paralela / concurrente (`cargarALaVez()`):**
+  * Utiliza `coroutineScope` para garantizar concurrencia estructurada y lanza ambas operaciones simultáneamente mediante `async`:
+    ```kotlin
+    val (perfil, pedidos) = coroutineScope {
+        val a = async { repo.cargarPerfil() }
+        val b = async { repo.cargarPedidos(false) }
+        Pair(a.await(), b.await())
+    }
+    ```
+  * Ambas operaciones corren en paralelo en hilos secundarios. La corrutina principal suspende hasta que la más lenta termina.
+  * **Tiempo total observado:** $\approx 3000\text{ ms}$ ($\max(2000, 3000) = 3000\text{ ms}$), logrando una reducción del 40% en el tiempo de espera del usuario.
+* **Componentes de UI (`PantallaTareas.kt`):**
+  * Tarjeta **"Dos cargas"** con botones *"Una por una"* (`OutlinedButton`) y *"A la vez"* (`Button`).
+  * Deshabilitación reactiva de ambos botones mientras `CargaUi.Cargando` para impedir solicitudes duplicadas.
+  * `CircularProgressIndicator` centrado durante la petición.
+  * Recuadro de resultado verde suave (`#E8F5E9`) detallando modo, nombre del perfil, cantidad de pedidos y milisegundos reales transcurridos, junto con el indicador comparativo de desempeño.
+
+
 
 
 

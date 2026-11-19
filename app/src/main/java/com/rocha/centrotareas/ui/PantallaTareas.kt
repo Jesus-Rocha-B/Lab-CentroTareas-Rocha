@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rocha.centrotareas.model.CargaUi
 import com.rocha.centrotareas.model.PrimosUi
 import com.rocha.centrotareas.viewmodel.TareasViewModel
 
@@ -54,6 +56,7 @@ fun PantallaTareas(vm: TareasViewModel) {
     val progreso by vm.progreso.collectAsState()
     val corriendo by vm.corriendo.collectAsState()
     val primos by vm.primos.collectAsState()
+    val carga by vm.carga.collectAsState()
 
     var toques by remember { mutableIntStateOf(0) }
     var textoNumero by remember { mutableStateOf("") }
@@ -363,6 +366,141 @@ fun PantallaTareas(vm: TareasViewModel) {
                         }
                         PrimosUi.Inicial -> {
                             // Sin recuadro hasta iniciar cálculo
+                        }
+                    }
+                }
+            }
+
+            // Tarjeta 3: Dos cargas a la vez con async (Paso 6)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = "Dos cargas",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1976D2)
+                    )
+
+                    val estaCargando = carga is CargaUi.Cargando
+
+                    // Fila de botones: Una por una (OutlinedButton) y A la vez (Button)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { vm.cargarUnaPorUna() },
+                            enabled = !estaCargando,
+                            shape = RoundedCornerShape(50),
+                            border = BorderStroke(
+                                1.5.dp,
+                                if (!estaCargando) Color(0xFF1976D2) else Color(0xFFCBD5E1)
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFF1976D2),
+                                disabledContentColor = Color(0xFF94A3B8)
+                            ),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = "Una por una",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Button(
+                            onClick = { vm.cargarALaVez() },
+                            enabled = !estaCargando,
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF1976D2),
+                                contentColor = Color.White,
+                                disabledContainerColor = Color(0xFFE2E8F0),
+                                disabledContentColor = Color(0xFF94A3B8)
+                            ),
+                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = "A la vez",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Estado de Carga
+                    when (val estado = carga) {
+                        is CargaUi.Cargando -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                color = Color(0xFF1976D2)
+                            )
+                        }
+                        is CargaUi.Exito -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFE8F5E9), shape = RoundedCornerShape(12.dp))
+                                    .border(1.dp, Color(0xFFA5D6A7), shape = RoundedCornerShape(12.dp))
+                                    .padding(vertical = 12.dp, horizontal = 16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "Modo: ${estado.modo}",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1B5E20),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = "Perfil: ${estado.perfil}",
+                                    color = Color(0xFF2E7D32),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    text = "Pedidos: ${estado.pedidos}",
+                                    color = Color(0xFF2E7D32),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    text = "Tiempo: ${estado.milisegundos} ms",
+                                    color = Color(0xFF2E7D32),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+
+                            if (estado.modo == "A la vez") {
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color(0xFFF1F5F9), RoundedCornerShape(50))
+                                        .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(50))
+                                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "«Una por una» tarda ≈ 5000 ms",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF64748B),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                        is CargaUi.Error -> {
+                            // Reservado para Paso 7
+                        }
+                        CargaUi.Inicial -> {
+                            // Sin recuadro hasta iniciar carga
                         }
                     }
                 }
