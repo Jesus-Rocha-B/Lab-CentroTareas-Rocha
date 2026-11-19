@@ -28,6 +28,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -57,6 +59,7 @@ fun PantallaTareas(vm: TareasViewModel) {
     val corriendo by vm.corriendo.collectAsState()
     val primos by vm.primos.collectAsState()
     val carga by vm.carga.collectAsState()
+    val simularError by vm.simularError.collectAsState()
 
     var toques by remember { mutableIntStateOf(0) }
     var textoNumero by remember { mutableStateOf("") }
@@ -393,6 +396,29 @@ fun PantallaTareas(vm: TareasViewModel) {
                         color = Color(0xFF1976D2)
                     )
 
+                    // Interruptor Simular error (Paso 7)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Switch(
+                            checked = simularError,
+                            onCheckedChange = { vm.cambiarSimularError(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF1976D2),
+                                uncheckedThumbColor = Color.White,
+                                uncheckedTrackColor = Color(0xFFCBD5E1)
+                            )
+                        )
+                        Text(
+                            text = "Simular error",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF334155),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
                     val estaCargando = carga is CargaUi.Cargando
 
                     // Fila de botones: Una por una (OutlinedButton) y A la vez (Button)
@@ -497,7 +523,42 @@ fun PantallaTareas(vm: TareasViewModel) {
                             }
                         }
                         is CargaUi.Error -> {
-                            // Reservado para Paso 7
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xFFFEE2E2), shape = RoundedCornerShape(12.dp))
+                                        .border(1.dp, Color(0xFFFCA5A5), shape = RoundedCornerShape(12.dp))
+                                        .padding(vertical = 12.dp, horizontal = 16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = estado.mensaje,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFDC2626),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    onClick = { vm.cargarALaVez() },
+                                    shape = RoundedCornerShape(50),
+                                    border = BorderStroke(1.5.dp, Color(0xFF1976D2)),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = Color(0xFF1976D2)
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp)
+                                ) {
+                                    Text(
+                                        text = "Reintentar",
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                         CargaUi.Inicial -> {
                             // Sin recuadro hasta iniciar carga

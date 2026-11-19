@@ -108,6 +108,33 @@ Se comparó empíricamente la carga de datos independiente de forma secuencial f
   * `CircularProgressIndicator` centrado durante la petición.
   * Recuadro de resultado verde suave (`#E8F5E9`) detallando modo, nombre del perfil, cantidad de pedidos y milisegundos reales transcurridos, junto con el indicador comparativo de desempeño.
 
+---
+
+## Solución del Paso 7: Estados de error y reintento
+
+Se diseñó la arquitectura de manejo resiliente de fallos en llamadas asíncronas de red/I-O sin comprometer la estabilidad del proceso.
+
+* **Control de simulación (`simularError`):**
+  * Se expone `simularError: StateFlow<Boolean>` y la función `cambiarSimularError(valor: Boolean)` en el ViewModel, transmitiendo el parámetro a `repo.cargarPedidos(simularError)`.
+* **Tratamiento estructurado de excepciones (`try/catch`):**
+  * Se envolvieron las llamadas en un bloque `try/catch` riguroso que prioriza la excepción de control de corrutinas:
+    ```kotlin
+    try {
+        ...
+    } catch (e: CancellationException) {
+        throw e // Preserva la cancelación cooperativa del Job
+    } catch (e: Exception) {
+        _carga.value = CargaUi.Error("No se pudo cargar: ${e.message}")
+    }
+    ```
+  * Si la corrutina secundaria lanza una `IOException("Sin conexión")`, se captura de forma controlada y se transiciona de inmediato al estado reactivo `CargaUi.Error`.
+* **Mecanismo de recuperación y UI (`PantallaTareas.kt`):**
+  * Se incorporó el interruptor `Switch` con etiqueta *"Simular error"* en la tarjeta **"Dos cargas"**.
+  * Al activarse el fallo, la interfaz presenta un recuadro de alerta estilizado en rojo suave (`#FEE2E2` con borde `#FCA5A5` y tipografía `#DC2626`) indicando: `"No se pudo cargar: Sin conexión"`.
+  * Se habilita el botón interactivo **"Reintentar"** (`OutlinedButton`) que reejecuta directamente la carga concurrente (`cargarALaVez()`).
+  * Al desactivar el interruptor y pulsar *"Reintentar"*, la corrutina completa satisfactoriamente y retorna al recuadro verde con la información cargada, sin que la aplicación se cierre en ningún escenario.
+
+
 
 
 
