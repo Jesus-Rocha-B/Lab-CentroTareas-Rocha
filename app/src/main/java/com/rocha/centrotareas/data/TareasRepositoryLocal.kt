@@ -28,12 +28,22 @@ class TareasRepositoryLocal : TareasRepository {
         return listOf("Pedido 101", "Pedido 102", "Pedido 103")
     }
 
-    override suspend fun contarPrimos(hasta: Int): Int = withContext(Dispatchers.Default) {
+    override suspend fun contarPrimos(hasta: Int): Int = contarPrimos(hasta, null)
+
+    override suspend fun contarPrimos(
+        hasta: Int,
+        onProgreso: (suspend (Float) -> Unit)?
+    ): Int = withContext(Dispatchers.Default) {
         var cantidad = 0
+        val pasoReporte = (hasta / 100).coerceAtLeast(1)
         for (n in 2..hasta) {
             ensureActive()
             if (esPrimo(n)) {
                 cantidad++
+            }
+            if (onProgreso != null && (n % pasoReporte == 0 || n == hasta)) {
+                val progreso = (n - 1).toFloat() / (hasta - 1).coerceAtLeast(1)
+                onProgreso(progreso)
             }
         }
         cantidad

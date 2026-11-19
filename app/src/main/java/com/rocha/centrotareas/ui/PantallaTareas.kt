@@ -336,17 +336,18 @@ fun PantallaTareas(vm: TareasViewModel) {
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 LinearProgressIndicator(
+                                    progress = { estado.progreso },
                                     modifier = Modifier
-                                        .fillMaxWidth(0.5f)
-                                        .height(4.dp),
+                                        .fillMaxWidth()
+                                        .height(6.dp),
                                     color = Color(0xFF1976D2),
                                     trackColor = Color(0xFFE2E8F0)
                                 )
                                 Text(
-                                    text = "Calculando...",
+                                    text = "Calculando: ${(estado.progreso * 100).toInt()} %",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color(0xFF64748B),
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
