@@ -32,7 +32,7 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
     private val _corriendo = MutableStateFlow(false)
     val corriendo: StateFlow<Boolean> = _corriendo.asStateFlow()
 
-    // Tarea larga que actualiza el progreso en segundo plano y puede cancelarse
+    // Tarea larga que actualiza el progreso en segundo plano y puede cancelarse (Mejora 1: Flow desde Repository)
     fun tareaLarga() {
         if (_corriendo.value) return
         trabajo = viewModelScope.launch {
@@ -40,16 +40,13 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
             try {
                 _progreso.value = 0f
                 _mensaje.value = "Trabajando..."
-                Log.d("HILO", "Antes: ${Thread.currentThread().name}")
-                withContext(Dispatchers.Default) {
-                    Log.d("HILO", "Dentro: ${Thread.currentThread().name}")
-                    for (i in 1..100) {
-                        delay(40)
-                        _progreso.value = i / 100f
-                    }
+                repo.ejecutarTareaLarga().collect { valor ->
+                    _progreso.value = valor
                 }
-                Log.d("HILO", "Despues: ${Thread.currentThread().name}")
                 _mensaje.value = "Terminó"
+            } catch (e: CancellationException) {
+                _mensaje.value = "Cancelado"
+                throw e
             } finally {
                 _corriendo.value = false
             }
