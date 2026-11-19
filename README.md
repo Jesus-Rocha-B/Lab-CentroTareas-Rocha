@@ -43,3 +43,13 @@ Se reemplazó el bloqueo de `Thread.sleep` por una corrutina estructurada lanzad
   * `Dentro: DefaultDispatcher-worker-1` (Hilo de fondo en segundo plano donde se realiza la espera sin bloquear la UI)
   * `Despues: main` (Retorno automático al hilo principal para actualizar el estado final a "Terminó")
 
+---
+
+## Solución del Paso 3: Mostrar el progreso con StateFlow
+
+Se incorporó un flujo reactivo inmutable `progreso: StateFlow<Float>` en el ViewModel para emitir valores normalizados entre `0f` y `1f` hacia la interfaz de usuario.
+
+* **Algoritmo de avance:** Se ejecuta un bucle de 100 iteraciones en `withContext(Dispatchers.Default)`. Cada iteración suspende por `delay(40)` y actualiza el progreso con `i / 100f`, completando el 100% de la tarea en aproximadamente 4 segundos sin saturar el hilo principal.
+* **Componentes de UI:** La interfaz observa el estado mediante `collectAsState()` y renderiza el componente oficial `LinearProgressIndicator(progress = { progreso })` junto con el porcentaje numérico calculado mediante `(progreso * 100).toInt() %`.
+
+
