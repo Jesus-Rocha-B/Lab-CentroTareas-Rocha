@@ -62,5 +62,26 @@ Se implementó el control de cancelación cooperativa y prevención de ejecucion
 * **Mecanismo de cancelación:** La función `cancelar()` invoca `trabajo?.cancel()`, deteniendo el bucle cooperativo en `delay()`, fijando el estado del mensaje en `"Cancelado"` y congelando la barra de progreso en el porcentaje alcanzado.
 * **Garantía en ciclo de vida (bloque `finally`):** El bloque `finally` asegura que `_corriendo.value = false` se ejecute invariablemente ante éxito o cancelación, habilitando el botón **"Iniciar"** y deshabilitando **"Cancelar"**.
 
+---
+
+## Solución del Paso 5: Contar números primos en Dispatchers.Default con cancelación
+
+Se implementó el cálculo intensivo de números primos delegando la carga pesada al despachador optimizado para CPU `withContext(Dispatchers.Default)` y garantizando cancelación cooperativa sin demoras artificiales.
+
+* **Algoritmo en Repository (`TareasRepositoryLocal.kt`):**
+  * La función `contarPrimos(hasta: Int)` itera en el rango `2..hasta`.
+  * En cada vuelta del bucle se invoca `ensureActive()`, lo que permite cancelar la operación pesada en cualquier instante liberando los núcleos del procesador de forma inmediata.
+  * La función privada `esPrimo(n: Int)` evalúa divisores hasta la raíz cuadrada utilizando la condición `while (d.toLong() * d <= n)`, evitando el costo de `sqrt()` y previniendo desbordamientos aritméticos en enteros de 32 bits.
+* **Control reactivo en ViewModel (`TareasViewModel.kt`):**
+  * Se gestiona el ciclo con `trabajoPrimos: Job?` y se expone `primos: StateFlow<PrimosUi>`.
+  * Se mide con precisión el tiempo de ejecución mediante `System.currentTimeMillis()`.
+  * Ante una interrupción del usuario, se captura `CancellationException`, se asigna el estado `PrimosUi.Cancelado` y se relanza la excepción con `throw e` para no romper la propagación del ciclo de vida de la corrutina.
+  * La función `cancelarPrimos()` detiene la corrutina llamando a `trabajoPrimos?.cancel()`.
+* **Interfaz de usuario (`PantallaTareas.kt`):**
+  * Se integró la tarjeta *"Contar números primos"* con un campo de texto numérico `OutlinedTextField` inicialmente vacío (con label y borde azulados), validando únicamente enteros positivos $\ge 2$.
+  * Botón **"Contar"** reactivo (deshabilitado mientras calcula o si el campo está vacío/inválido) y botón **"Cancelar"** activo solo durante el cómputo.
+  * Recuadro de resultado estilizado en verde suave (`#E8F5E9`, borde `#A5D6A7`) con texto verde oscuro (`#1B5E20`), que presenta la cantidad de números primos encontrados y los milisegundos requeridos, comprobándose total fluidez en el hilo principal (el contador del botón *"Tócame"* continúa sumando en tiempo real).
+
+
 
 
