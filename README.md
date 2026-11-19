@@ -52,4 +52,15 @@ Se incorporó un flujo reactivo inmutable `progreso: StateFlow<Float>` en el Vie
 * **Algoritmo de avance:** Se ejecuta un bucle de 100 iteraciones en `withContext(Dispatchers.Default)`. Cada iteración suspende por `delay(40)` y actualiza el progreso con `i / 100f`, completando el 100% de la tarea en aproximadamente 4 segundos sin saturar el hilo principal.
 * **Componentes de UI:** La interfaz observa el estado mediante `collectAsState()` y renderiza el componente oficial `LinearProgressIndicator(progress = { progreso })` junto con el porcentaje numérico calculado mediante `(progreso * 100).toInt() %`.
 
+---
+
+## Solución del Paso 4: Cancelar la tarea con Job
+
+Se implementó el control de cancelación cooperativa y prevención de ejecuciones concurrentes mediante una referencia `trabajo: Job?` y el estado reactivo `corriendo: StateFlow<Boolean>`.
+
+* **Prevención de doble inicio:** Si la tarea ya se encuentra en ejecución (`_corriendo.value == true`), nuevas invocaciones a `tareaLarga()` se descartan inmediatamente.
+* **Mecanismo de cancelación:** La función `cancelar()` invoca `trabajo?.cancel()`, deteniendo el bucle cooperativo en `delay()`, fijando el estado del mensaje en `"Cancelado"` y congelando la barra de progreso en el porcentaje alcanzado.
+* **Garantía en ciclo de vida (bloque `finally`):** El bloque `finally` asegura que `_corriendo.value = false` se ejecute invariablemente ante éxito o cancelación, habilitando el botón **"Iniciar"** y deshabilitando **"Cancelar"**.
+
+
 

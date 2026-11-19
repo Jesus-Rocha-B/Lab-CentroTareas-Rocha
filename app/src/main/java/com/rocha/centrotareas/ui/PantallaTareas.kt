@@ -3,6 +3,8 @@ package com.rocha.centrotareas.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +17,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -38,6 +41,7 @@ import com.rocha.centrotareas.viewmodel.TareasViewModel
 fun PantallaTareas(vm: TareasViewModel) {
     val mensaje by vm.mensaje.collectAsState()
     val progreso by vm.progreso.collectAsState()
+    val corriendo by vm.corriendo.collectAsState()
     var toques by remember { mutableIntStateOf(0) }
 
     Scaffold(
@@ -65,7 +69,7 @@ fun PantallaTareas(vm: TareasViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Tarjeta principal: Tarea con progreso (Paso 3)
+            // Tarjeta: Tarea con progreso (Pasos 3 y 4)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -76,7 +80,7 @@ fun PantallaTareas(vm: TareasViewModel) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 24.dp),
+                        .padding(horizontal = 20.dp, vertical = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
@@ -87,14 +91,15 @@ fun PantallaTareas(vm: TareasViewModel) {
                         color = Color(0xFF1976D2)
                     )
 
-                    // Botón 1: Tócame (contador interactivo)
+                    // Botón 1: Tócame (contador centrado)
                     Button(
                         onClick = { toques++ },
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF1976D2),
                             contentColor = Color.White
-                        )
+                        ),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp)
                     ) {
                         Text(
                             text = "Tócame: $toques",
@@ -102,19 +107,48 @@ fun PantallaTareas(vm: TareasViewModel) {
                         )
                     }
 
-                    // Botón 2: Iniciar tarea con avance de progreso
-                    Button(
-                        onClick = { vm.tareaLarga() },
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1976D2),
-                            contentColor = Color.White
-                        )
+                    // Fila de botones centrados: Iniciar y Cancelar (Paso 4)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Iniciar",
-                            fontWeight = FontWeight.Bold
-                        )
+                        Button(
+                            onClick = { vm.tareaLarga() },
+                            enabled = !corriendo,
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF1976D2),
+                                contentColor = Color.White,
+                                disabledContainerColor = Color(0xFFE2E8F0),
+                                disabledContentColor = Color(0xFF94A3B8)
+                            ),
+                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = "Iniciar",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = { vm.cancelar() },
+                            enabled = corriendo,
+                            shape = RoundedCornerShape(50),
+                            border = BorderStroke(
+                                1.5.dp,
+                                if (corriendo) Color(0xFF1976D2) else Color(0xFFCBD5E1)
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFF1976D2),
+                                disabledContentColor = Color(0xFF94A3B8)
+                            ),
+                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = "Cancelar",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     // Barra de progreso interactiva (0% a 100%)
@@ -122,12 +156,13 @@ fun PantallaTareas(vm: TareasViewModel) {
                         progress = { progreso },
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
                             .height(6.dp),
                         color = Color(0xFF1976D2),
                         trackColor = Color(0xFFE2E8F0)
                     )
 
-                    // Porcentaje numérico (ej. 62 %)
+                    // Porcentaje numérico (ej. 40 % o 62 %)
                     Text(
                         text = "${(progreso * 100).toInt()} %",
                         style = MaterialTheme.typography.bodyMedium,
@@ -135,7 +170,7 @@ fun PantallaTareas(vm: TareasViewModel) {
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    // Texto del mensaje ("Listo", "Trabajando...", "Terminó")
+                    // Texto del mensaje ("Listo", "Trabajando...", "Cancelado", "Terminó")
                     Text(
                         text = mensaje,
                         style = MaterialTheme.typography.bodyMedium,
